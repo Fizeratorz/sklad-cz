@@ -617,9 +617,16 @@ def quick_sell():
         unit.order_number = order_number
 
     unit.disposal_type = "shipment"
-    unit.disposal_reason = "remote_sale"
-    unit.disposal_doc_type = (data.get("disposal_doc_type") or "прочее").strip()
-    unit.disposal_doc_name = f"Заказ {order_number}" if order_number else ""
+    disposal_doc_type = (data.get("disposal_doc_type") or "прочее").strip()
+    unit.disposal_doc_type = disposal_doc_type
+
+    if disposal_doc_type == "УПД":
+        unit.disposal_reason = "own_needs"
+        unit.disposal_doc_name = f"УПД {order_number}" if order_number else ""
+    else:
+        unit.disposal_reason = "remote_sale"
+        unit.disposal_doc_name = f"Заказ {order_number}" if order_number else ""
+
     unit.disposal_doc_number = order_number or ""
     unit.disposal_doc_date = unit.sold_date
     if disposal_price:
