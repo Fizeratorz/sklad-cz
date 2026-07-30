@@ -75,6 +75,11 @@ PRODUCT_GROUPS = [
 
 DEFAULT_PRODUCT_GROUP = "25"  # Мясные изделия (fork)
 
+# Старые неверные ID → актуальные
+_PRODUCT_GROUP_MIGRATIONS = {
+    "62": "25",  # meat: ошибочный ID → правильный productGroupId
+}
+
 
 def get_product_group_code(numeric_id) -> str:
     """Получить строковый код товарной группы по числовому ID или коду."""
@@ -96,11 +101,24 @@ def get_product_group_name(numeric_id) -> str:
 
 def load_settings() -> dict:
     if SETTINGS_PATH.exists():
-        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    return {}
+        data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    else:
+        data = {}
+
+    # Миграция устаревших product_group ID (например 62 → 25 для meat)
+    pg = str(data.get("product_group", ""))
+    if pg in _PRODUCT_GROUP_MIGRATIONS:
+        data["product_group"] = _PRODUCT_GROUP_MIGRATIONS[pg]
+        try:
+            save_settings(data)
+        except Exception:
+            pass
+
+    return data
 
 
 def save_settings(data: dict):
+    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     SETTINGS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
