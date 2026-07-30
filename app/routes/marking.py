@@ -27,8 +27,9 @@ marking_bp = Blueprint("marking", __name__)
 def get_suz_settings():
     s = load_settings()
     return jsonify({
-        "suz_api_url": s.get("suz_api_url", "https://suzgrid.crpt.ru"),
+        "suz_api_url": s.get("suz_api_url", "https://suz2.crpt.ru"),
         "suz_oms_id": s.get("suz_oms_id", ""),
+        "suz_contact_person": s.get("suz_contact_person", ""),
         "has_suz_client_token": bool(s.get("suz_client_token")),
         "product_group": s.get("product_group", DEFAULT_PRODUCT_GROUP),
         "product_group_code": get_product_group_code(
@@ -41,7 +42,7 @@ def get_suz_settings():
 def set_suz_settings():
     data = request.json or {}
     s = load_settings()
-    for key in ("suz_api_url", "suz_oms_id", "suz_client_token"):
+    for key in ("suz_api_url", "suz_oms_id", "suz_client_token", "suz_contact_person"):
         if key in data:
             s[key] = data[key]
     save_settings(s)
@@ -60,12 +61,20 @@ def suz_ping():
 @marking_bp.route("/api/suz/order", methods=["POST"])
 def suz_create_order():
     """
-    Тело:
+    Тело (как в 1С для meat):
     {
-      "products": [{"gtin": "0460...", "quantity": 10, "serialNumberType": "OPERATOR"}],
-      "releaseMethodType": "PRODUCTION",   // optional
-      "createMethodType": "SELF_MADE",     // optional
-      "productGroup": "meat"               // optional, иначе из настроек
+      "products": [{
+        "gtin": "04680958921310",
+        "quantity": 10,
+        "serialNumberType": "OPERATOR",
+        "cisType": "UNIT",
+        "templateId": 74
+      }],
+      "releaseMethodType": "PRODUCTION",
+      "createMethodType": "SELF_MADE",
+      "productGroup": "meat",
+      "contactPerson": "Иванов И.И.",
+      "productionOrderId": "uuid-optional"
     }
     """
     data = request.json or {}
@@ -79,6 +88,9 @@ def suz_create_order():
             release_method=data.get("releaseMethodType", "PRODUCTION"),
             create_method=data.get("createMethodType", "SELF_MADE"),
             product_group=data.get("productGroup"),
+            contact_person=data.get("contactPerson"),
+            production_order_id=data.get("productionOrderId"),
+            extra_attributes=data.get("attributes"),
         )
         return jsonify({"ok": True, "result": result})
     except Exception as e:
@@ -127,8 +139,8 @@ def suz_utilisation():
     Отчёт о нанесении.
     {
       "sntins": ["01046...21...", ...],
-      "productGroup": "meat",   // optional
-      "attributes": {}          // optional
+      "productGroup": "meat",
+      "attributes": {}
     }
     """
     data = request.json or {}
@@ -163,13 +175,10 @@ def true_introduce():
 
     Тело:
     {
-      "document_type": "LP_INTRODUCE_GOODS",  // или актуальный тип для ТГ
-      "document": { ... },                   // JSON документа
-      "product_group": "meat"                // optional
+      "document_type": "LP_INTRODUCE_GOODS",
+      "document": { ... },
+      "product_group": "meat"
     }
-
-    document будет сериализован в base64 productDocument и подписан.
-    Структура document зависит от товарной группы — сверяйте с докой True API в ЛК.
     """
     data = request.json or {}
     document = data.get("document")
@@ -204,16 +213,28 @@ def cycle_help():
             {
                 "step": 1,
                 "name": "Настройки",
-                "desc": "ЭЦП, ИНН, product_group=meat (ID в списке), OMS ID, URL СУЗ",
+                "desc": (
+                    "ЭЦП, ИНН, product_group=meat (строковый код для СУЗ). "
+                    "OMS ID, URL СУЗ = https://suz2.crpt.ru, contactPerson. "
+                    "Числовой ID для баланса сверяйте в ЛК — 62 может быть неверным."
+                ),
             },
             {
                 "step": 2,
                 "name": "Заказ КМ",
                 "endpoint": "POST /api/suz/order",
                 "body": {
-                    "products": [
-                        {"gtin": "0460XXXXXXXXXX", "quantity": 10, "serialNumberType": "OPERATOR"}
-                    ]
+                    "products": [{
+                        "gtin": "04680958921310",
+                        "quantity": 10,
+                        "serialNumberType": "OPERATOR",
+                        "cisType": "UNIT",
+                        "templateId": 74,
+                    }],
+                    "productGroup": "meat",
+                    "contactPerson": "ФИО",
+                    "releaseMethodType": "PRODUCTION",
+                    "createMethodType": "SELF_MADE",
                 },
             },
             {
@@ -228,7 +249,7 @@ def cycle_help():
                 "step": 4,
                 "name": "Отчёт о нанесении",
                 "endpoint": "POST /api/suz/utilisation",
-                "body": {"sntins": ["01046...21..."]},
+                "body": {"sntins": ["01046...21..."], "productGroup": "meat"},
             },
             {
                 "step": 5,
@@ -240,11 +261,13 @@ def cycle_help():
         "product_group_meat": {
             "code": "meat",
             "name": "Мясные изделия",
-            "contact": "meat@crpt.ru",
-            "telegram": "@markirovka_meat",
+            "suz_url": "https://suz2.crpt.ru",
+            "templateId": 74,
+            "note": "Числовой productGroupId для /elk/.../balance смотрите в ЛК ЧЗ",
         },
         "urls": {
-            "suz_prod": "https://suzgrid.crpt.ru",
+            "suz_prod": "https://suz2.crpt.ru",
+            "suz_legacy": "https://suzgrid.crpt.ru",
             "suz_sandbox": "https://suz.sandbox.crptech.ru",
             "true_prod": "https://markirovka.crpt.ru/api/v3/true-api",
             "true_sandbox": "https://markirovka.sandbox.crptech.ru/api/v3/true-api",
