@@ -4,9 +4,10 @@
  *
  * Числовые ID для баланса сверяйте в ЛК ЧЗ.
  * Код productGroup для СУЗ/True API: meat, milk, water, ...
+ * Мясо: productGroupId=25, code=meat, templateId=74
  */
 window.EXTRA_PRODUCT_GROUPS = [
-  { id: "62", code: "meat", name: "62 — Мясные изделия" },
+  { id: "25", code: "meat", name: "25 — Мясные изделия" },
   { id: "8", code: "milk", name: "8 — Молочная продукция" },
   { id: "13", code: "water", name: "13 — Упакованная вода" },
   { id: "16", code: "conserve", name: "16 — Консервированная продукция" },
