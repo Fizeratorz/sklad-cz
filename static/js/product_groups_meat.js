@@ -1,10 +1,7 @@
 /**
  * Дополнение списка товарных групп для fork (мясо и пищевые).
- * Подключается опционально или встраивается в app.js.
  *
- * Числовые ID для баланса сверяйте в ЛК ЧЗ.
- * Код productGroup для СУЗ/True API: meat, milk, water, ...
- * Мясо: productGroupId=25, code=meat, templateId=74
+ * Мясо: productGroupId=25 (баланс True API), code=meat (СУЗ), templateId=74
  */
 window.EXTRA_PRODUCT_GROUPS = [
   { id: "25", code: "meat", name: "25 — Мясные изделия" },
@@ -20,6 +17,15 @@ window.EXTRA_PRODUCT_GROUPS = [
 function injectExtraProductGroups() {
   const sel = document.getElementById("product-group");
   if (!sel || !window.EXTRA_PRODUCT_GROUPS) return;
+
+  // Миграция старого неверного ID 62 → 25
+  for (const opt of [...sel.options]) {
+    if (opt.value === "62") {
+      opt.value = "25";
+      opt.textContent = "25 — Мясные изделия";
+    }
+  }
+
   const existing = new Set([...sel.options].map((o) => o.value));
   for (const g of window.EXTRA_PRODUCT_GROUPS) {
     if (existing.has(g.id)) continue;
@@ -28,6 +34,9 @@ function injectExtraProductGroups() {
     opt.textContent = g.name;
     sel.appendChild(opt);
   }
+
+  // Если в settings был 62 — UI уже показывает 25; при сохранении уйдёт 25
+  if (sel.value === "62") sel.value = "25";
 }
 
 document.addEventListener("DOMContentLoaded", injectExtraProductGroups);
