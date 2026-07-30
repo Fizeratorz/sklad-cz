@@ -1,5 +1,7 @@
 import sys
 import os
+import base64
+import json
 import requests
 from app.utils import load_settings
 from app.config import CZ_API_URL
@@ -75,7 +77,7 @@ def _get_cert_by_thumbprint_win(thumbprint):
 
 def _sign_data_win(data_to_sign: str, thumbprint: str) -> str:
     import win32com.client
-    import base64
+    import base64 as b64mod
     _com_init()
     try:
         target = thumbprint.upper()
@@ -114,7 +116,7 @@ def _sign_data_win(data_to_sign: str, thumbprint: str) -> str:
 
         sd = win32com.client.Dispatch("CAdESCOM.CadesSignedData")
         sd.ContentEncoding = 1
-        b64 = base64.b64encode(data_to_sign.encode("ascii")).decode("ascii")
+        b64 = b64mod.b64encode(data_to_sign.encode("utf-8")).decode("ascii")
         sd.Content = b64
 
         signature = sd.SignCades(signer, 1, False, 0)
@@ -382,3 +384,79 @@ def check_cz_status(cz_codes: list, thumbprint: str = None) -> dict:
                 raise
 
     return {"results": all_results}
+
+
+def create_document(
+    product_group: str,
+    document_type: str,
+    document: dict,
+    thumbprint: str = None,
+) -> dict:
+    """
+    Создание документа в True API (ввод в оборот и др.).
+
+    POST /lk/documents/create?pg={product_group}
+
+    Body:
+      {
+        "document_format": "MANUAL",
+        "type": document_type,
+        "product_document": base64(json.dumps(document)),
+        "signature": CAdES-BES(product_document_bytes or content)
+      }
+
+    Схема `document` и `type` зависят от товарной группы — для meat
+    сверяйте актуальную документацию True API в ЛК ЧЗ.
+    """
+    s = load_settings()
+    if not thumbprint:
+        thumbprint = s.get("cz_cert_thumbprint", "")
+    if not thumbprint:
+        raise Exception("Certificate thumbprint not set")
+
+    token = get_uuid_token(thumbprint)
+    base = _get_base_url()
+
+    doc_json = json.dumps(document, ensure_ascii=False, separators=(",", ":"))
+    product_document_b64 = base64.b64encode(doc_json.encode("utf-8")).decode("ascii")
+
+    # Подписываем исходный JSON документа (как делают большинство интеграторов)
+    signature = _sign_data(doc_json, thumbprint)
+
+    payload = {
+        "document_format": "MANUAL",
+        "product_document": product_document_b64,
+        "type": document_type,
+        "signature": signature,
+    }
+
+    url = f"{base}/lk/documents/create"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+        "accept": "application/json",
+    }
+    r = requests.post(
+        url,
+        params={"pg": product_group},
+        json=payload,
+        headers=headers,
+        timeout=60,
+    )
+    if r.status_code == 401:
+        reset_token()
+        token = get_uuid_token(thumbprint)
+        headers["Authorization"] = f"Bearer {token}"
+        r = requests.post(
+            url,
+            params={"pg": product_group},
+            json=payload,
+            headers=headers,
+            timeout=60,
+        )
+    if r.status_code >= 400:
+        raise Exception(f"True API documents/create HTTP {r.status_code}: {r.text[:800]}")
+    try:
+        return r.json()
+    except Exception:
+        return {"ok": True, "status_code": r.status_code, "raw": r.text[:500]}
