@@ -9,6 +9,12 @@
 - закрытие заказа
 
 Подпись заказов — откреплённая CAdES-BES в заголовке X-Signature.
+
+Важно для мяса (productGroup=meat):
+- URL: https://suz2.crpt.ru (не suzgrid)
+- productGroup — СТРОКА "meat", не числовой ID
+- products: cisType=UNIT, templateId=74 (или актуальный из ЛК)
+- attributes: contactPerson, productionOrderId (опционально)
 """
 
 from __future__ import annotations
@@ -27,8 +33,18 @@ _platform = sys.platform
 _suz_token: str | None = None
 
 # Продакшн / песочница СУЗ
-SUZ_PROD = "https://suzgrid.crpt.ru"
+# suz2 — актуальный хост для ряда ТГ (в т.ч. meat), suzgrid — старый/общий
+SUZ_PROD = "https://suz2.crpt.ru"
+SUZ_PROD_LEGACY = "https://suzgrid.crpt.ru"
 SUZ_SANDBOX = "https://suz.sandbox.crptech.ru"
+
+# Дефолтный templateId по ТГ (уточняйте в ЛК СУЗ)
+DEFAULT_TEMPLATE_IDS = {
+    "meat": 74,
+    "milk": 10,
+    "water": 10,
+    "toys": 10,
+}
 
 
 def _is_windows() -> bool:
@@ -52,15 +68,18 @@ def _get_oms_id() -> str:
 
 
 def _get_product_group_str() -> str:
+    """Строковый код ТГ для СУЗ (meat, milk, toys…) — НИКОГДА не числовой ID."""
     s = load_settings()
-    pg = s.get("product_group", "27")
+    pg = s.get("product_group", "62")
     code = get_product_group_code(pg)
-    if not code:
-        # если уже передали строковый код
-        if isinstance(pg, str) and not pg.isdigit():
-            return pg
-        raise Exception(f"Неизвестная товарная группа: {pg}")
-    return code
+    if code:
+        return code
+    if isinstance(pg, str) and not str(pg).isdigit():
+        return pg
+    raise Exception(
+        f"Неизвестная товарная группа: {pg}. "
+        f"Для СУЗ нужен строковый код (meat, milk, …), не числовой ID баланса."
+    )
 
 
 def _sign_detached(data: str, thumbprint: str | None = None) -> str:
@@ -188,26 +207,57 @@ def create_order(
     release_method: str = "PRODUCTION",
     create_method: str = "SELF_MADE",
     product_group: str | None = None,
+    contact_person: str | None = None,
+    production_order_id: str | None = None,
+    extra_attributes: dict | None = None,
 ) -> dict:
     """
     Создать заказ на эмиссию кодов маркировки.
 
     products: список вида
-      [{"gtin": "0460...", "quantity": 10, "serialNumberType": "OPERATOR"}]
-      serialNumberType: OPERATOR (серийники генерит СУЗ) | SELF_MADE
+      [{
+        "gtin": "0460...",
+        "quantity": 10,
+        "serialNumberType": "OPERATOR",  # или SELF_MADE
+        "cisType": "UNIT",               # рекомендуется для meat
+        "templateId": 74                 # для meat; иначе подставится дефолт по ТГ
+      }]
 
-    Возвращает ответ СУЗ (orderId, status и т.д.).
+    Возвращает ответ СУЗ (orderId, omsId, expectedCompleteTimestamp).
     """
     oms_id = _get_oms_id()
     pg = product_group or _get_product_group_str()
 
+    # Нормализация products под формат 1С/СУЗ
+    default_tpl = DEFAULT_TEMPLATE_IDS.get(pg)
+    normalized = []
+    for p in products:
+        item = dict(p)
+        if "cisType" not in item:
+            item["cisType"] = "UNIT"
+        if "templateId" not in item and default_tpl is not None:
+            item["templateId"] = default_tpl
+        if "serialNumberType" not in item:
+            item["serialNumberType"] = "OPERATOR"
+        normalized.append(item)
+
+    attributes: dict[str, Any] = {
+        "releaseMethodType": release_method,
+        "createMethodType": create_method,
+    }
+    s = load_settings()
+    person = contact_person or (s.get("suz_contact_person") or "").strip()
+    if person:
+        attributes["contactPerson"] = person
+    if production_order_id:
+        attributes["productionOrderId"] = production_order_id
+    if extra_attributes:
+        attributes.update(extra_attributes)
+
     body = {
         "productGroup": pg,
-        "products": products,
-        "attributes": {
-            "releaseMethodType": release_method,
-            "createMethodType": create_method,
-        },
+        "attributes": attributes,
+        "products": normalized,
     }
     # JSON без пробелов — иначе подпись не сойдётся
     json_str = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
