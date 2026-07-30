@@ -32,6 +32,7 @@ def create_app():
     from app.routes.import_export import import_export_bp
     from app.routes.settings import settings_bp
     from app.routes.tnved import tnved_bp
+    from app.routes.marking import marking_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(warehouses_bp, url_prefix="/api/warehouses")
@@ -41,6 +42,7 @@ def create_app():
     app.register_blueprint(import_export_bp, url_prefix="/api")
     app.register_blueprint(settings_bp)
     app.register_blueprint(tnved_bp, url_prefix="/api/tnved")
+    app.register_blueprint(marking_bp)
 
     @app.context_processor
     def inject_version():
@@ -139,7 +141,6 @@ def init_db(app):
             db.session.rollback()
             print(f"[warn] Не удалось создать уникальный индекс: {e}")
 
-        # Миграция disposal_status: 2 -> 1 (старое "Подтверждено ЧЗ" → новое)
         try:
             result = db.session.execute(
                 text("UPDATE unit SET disposal_status = 1 WHERE disposal_status = 2")

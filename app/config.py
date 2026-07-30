@@ -18,6 +18,7 @@ APP_HOST = os.getenv("APP_HOST", "127.0.0.1")
 APP_PORT = int(os.getenv("APP_PORT", "5000"))
 
 CZ_API_URL = os.getenv("CZ_API_URL", "https://markirovka.crpt.ru/api/v3/true-api")
+SUZ_API_URL = os.getenv("SUZ_API_URL", "https://suzgrid.crpt.ru")
 
 REMOTE_HOST = os.getenv("REMOTE_HOST", "")
 REMOTE_USER = os.getenv("REMOTE_USER", "root")
