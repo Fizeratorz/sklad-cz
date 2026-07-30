@@ -37,8 +37,8 @@ DISPOSAL_STATUSES = [
 
 SETTINGS_PATH = Path(__file__).parent.parent / "instance" / "settings.json"
 
-# (numeric_id, string_code for SUZ/True API pg=, display name)
-# Числовой ID для баланса ЛС сверяйте в ЛК ЧЗ — у новых ТГ он может отличаться.
+# (numeric_id for True API balance, string_code for SUZ/True API pg=, display name)
+# Числовой ID для баланса ЛС сверяйте в ЛК ЧЗ.
 PRODUCT_GROUPS = [
     (1, "lp", "Лёгкая промышленность"),
     (5, "tires", "Шины и покрышки пневматические резиновые новые"),
@@ -63,7 +63,7 @@ PRODUCT_GROUPS = [
     (54, "homeware", "Товары для дома и интерьера"),
     (59, "pyrotechnics", "Пиротехнические изделия"),
     # --- пищевые / мясо (fork Fizeratorz) ---
-    (62, "meat", "Мясные изделия"),
+    (25, "meat", "Мясные изделия"),  # productGroupId=25, SUZ code=meat, templateId=74
     (8, "milk", "Молочная продукция"),
     (13, "water", "Упакованная вода"),
     (16, "conserve", "Консервированная продукция"),
@@ -73,7 +73,7 @@ PRODUCT_GROUPS = [
     (17, "petfood", "Корма для животных"),
 ]
 
-DEFAULT_PRODUCT_GROUP = "62"  # Мясные изделия (fork)
+DEFAULT_PRODUCT_GROUP = "25"  # Мясные изделия (fork)
 
 
 def get_product_group_code(numeric_id) -> str:
